@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
+using Utility.Extensions;
 using Utility.Extensions.Enumerable;
 
 namespace DeviceLink.Devices
@@ -328,9 +329,9 @@ namespace DeviceLink.Devices
         {
             var fs = new Func<SampleResponse, string>((s) =>
             {
-                return s.RackNo.ToFixLengthString(4) + s.CupPos.ToFixLengthString(2) +
+                return "S " + s.RackNo.ToFixLengthString(4) + s.CupPos.ToFixLengthString(2) +
                     s.SampleType.ToFixLengthString(1) + s.SampleNo.ToFixLengthString(4) + 
-                    s.SampleID.ToFixLengthString(10);
+                    s.SampleID.ToFixLengthString(10) + " ".Repeat(4) + "E";
             });
             var data = fs(response);
             var message = GenerateWriteMessage(data);
@@ -342,8 +343,7 @@ namespace DeviceLink.Devices
             var fs = new Func<SampleResponse, string>((s) => {
                 var result = "S " + s.RackNo.ToFixLengthString(4) + s.CupPos.ToFixLengthString(2) +
                     s.SampleType.ToFixLengthString(1) + s.SampleNo.ToFixLengthString(4) +
-                    s.SampleID.ToFixLengthString(10) + string.Concat(Enumerable.Repeat(" ", 4)) +
-                    "E";
+                    s.SampleID.ToFixLengthString(10) + " ".Repeat(4) + "E";
                 if (response.TestOrders.IsNullOrEmpty()) { return result; }
                 foreach (var order in response.TestOrders)
                 {
