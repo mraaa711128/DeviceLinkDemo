@@ -49,10 +49,12 @@ namespace DeviceLink.Structure
 
     public class SampleResponse : SampleInfo
     {
+        public bool IsEmergency { get; set; }
         public IList<TestOrder> TestOrders { get; set; }
     }
     public class SampleResult : SampleInfo
     {
+        public DateTime ReportDateTime { get; set; }
         public IList<TestResult> TestResults { get; set; }
     }
     public class QcResult : SampleInfo
