@@ -36,7 +36,8 @@ namespace DeviceLink.Extensions
         }
 
         public static string Repeat(this string origin, int count) {
-            if (origin.IsNullOrEmpty()) { throw new ArgumentNullException(); }
+            if (origin.IsNullOrEmpty(false)) { throw new ArgumentNullException(); }
+
             return string.Concat(Enumerable.Repeat(origin, count));
         }
     }
