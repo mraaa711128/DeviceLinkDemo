@@ -391,14 +391,14 @@ namespace DeviceLink.Devices
                 var msgCode = resultData.Substring(0, 2);
                 if (sampleResult is null)
                 {
-                    sampleResult = new SampleResult
-                    {
+                    sampleResult = new SampleResult {
                         RackNo = resultData.Substring(4, 4),
                         CupPos = resultData.Substring(8, 2),
                         SampleType = resultData.Substring(10, 1),
                         SampleNo = resultData.Substring(11, 4),
                         SampleID = resultData.Substring(15, 10),
                         IsRerun = ("dH,DH".Contains(msgCode) ? true : false),
+                        ReportDateTime = DateTime.Now,
                         TestResults = new List<TestResult>()
                     };
                 }
@@ -442,6 +442,7 @@ namespace DeviceLink.Devices
                         SampleID = resultData.Substring(15, 10).Trim(),
                         ControlNo = resultData.Substring(26, 3),
                         IsRerun = false,
+                        ReportDateTime = DateTime.Now,
                         QcResults = new List<TestResult>()
                     };
                 }

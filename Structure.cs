@@ -60,6 +60,7 @@ namespace DeviceLink.Structure
     public class QcResult : SampleInfo
     {
         public string ControlNo { get; set; }
+        public DateTime ReportDateTime { get; set; }
         public IList<TestResult> QcResults { get; set; }
     }
 
