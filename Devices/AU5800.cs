@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.IO.Ports;
 using System.Linq;
-using Utility.Extensions;
 using Utility.Extensions.Enumerable;
 
 namespace DeviceLink.Devices

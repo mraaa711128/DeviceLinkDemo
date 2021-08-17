@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\KnLabLink\Utility\Utility.csproj" />
+    <ProjectReference Include="..\Utility\Utility.csproj" />
   </ItemGroup>
 
 </Project>

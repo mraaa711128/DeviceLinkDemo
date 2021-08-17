@@ -212,6 +212,7 @@ namespace DeviceLink.Devices {
 
                                     mSampleResponse = mListener.OnSampleRequestReceived(mDeviceNo, (SampleInfo)outputData);
 
+                                    Logger.Info("Send [ENQ] to Start Transmit Orders");
                                     WriteData((char)ControlCode.ENQ);
 
                                     mDownloadStage = DownloadStage.Stage_ENQ;
@@ -390,7 +391,81 @@ namespace DeviceLink.Devices {
         }
 
         private DownloadStage ProcessDownloadData(SampleResponse data, out List<char> dnBuffer) {
+            var result = DownloadStage.Stage_ENQ;
+            
+            switch (mDownloadStage) {
+                case DownloadStage.Stage_ENQ:
+                    Logger.Info($"Begin to Process Download Header Info");
 
+                    mExpectFrameNo = 1;
+
+                    dnBuffer = $"H|\^&|||LIS|||||||P|1|{DateTime.Now.ToString("yyyyMMddHHmmss")}".ToList();
+
+                    if (!data.TestOrders.IsNullOrEmpty()) {
+                        result = DownloadStage.Stage_HeaderInfo;
+                    } else {
+                        result = DownloadStage.Stage_OrderInfo;
+                    }
+                    break;
+                case DownloadStage.Stage_HeaderInfo:
+                    Logger.Info("Begin to Process Download Patient Info");
+
+                    dnBuffer = $"P|1|".ToList();
+
+                    result = DownloadStage.Stage_PatientInfo;
+                    break;
+                case DownloadStage.Stage_PatientInfo:
+                    Logger.Info("Begin to Process Download Order Info");
+
+                    dnBuffer = $"O|1|{data.SampleID}||".ToList();
+                    
+                    var testBuffer = new List<char>();
+                    foreach (var testOrder in data.TestOrders) {
+                        if (testBuffer.IsNullOrEmpty()) {
+                            testBuffer.AddRange($"^^^{testOrder.Code}");
+                        } else {
+                            testBuffer.AddRange($"\^^^{testOrder.Code}");
+                        }
+                    }
+                    dnBuffer.AddRange(testBuffer);
+                    dnBuffer.AddRange($"|{(data.IsEmergency ? "S" : "R")}||||||A||||{data.SampleType}".ToList());
+
+                    result = DownloadStage.Stage_OrderInfo;
+                    break;
+                case DownloadStage.Stage_OrderInfo:
+                    Logger.Info("Begin to Process Download Terminate Info");
+
+                    dnBuffer = $"L|1|F".ToList();
+
+                    result = DownloadStage.Stage_TerminateInfo;
+                    break;
+                case DownloadStage.Stage_TerminateInfo:
+                    Logger.Info("Send [EOT] to Stop Transmission");
+
+                    dnBuffer = new List<char>() { (char)ControlCode.EOT };
+
+                    return DownloadStage.Stage_EOT;
+                case DownloadStage.Stage_EOT:
+                default:
+                    Logger.Error("Unexpected Behavior from Device DxI Access2");
+                    return DownloadStage.Stage_EOT;
+            }
+
+            Logger.Info($"Data = {new string(dnBuffer.ToArray()).ToPrintOutString()}");
+
+            dnBuffer.InsertRange(0, new char[] { (char)ControlCode.STX, (char)mExpectFrameNo });
+            dnBuffer.AddRange(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETX });
+
+            var chrChecksum = ComputeChecksum(dnBuffer.Skip(1).ToList());
+            var hexChecksum = BitConverter.ToString(new byte[] { (byte)chrChecksum });
+            dnBuffer.AddRange(hexChecksum.ToList());
+            dnBuffer.AddRange(new char[] { (char)ControlCode.CR_, (char)ControlCode.LF_ });
+
+            Logger.Info($"Computed Data = {new string(dnBuffer.ToArray()).ToPrintOutString()}");
+
+            mExpectFrameNo = (mExpectFrameNo + 1) % 8;
+
+            return result;
         }
     }
 }
