@@ -33,6 +33,7 @@ namespace DeviceLink.Devices {
         private SampleResult mSampleResult = null;
         private QcResult mQcResult = null;
 
+        private const string QC_CONTROL_ID = "TUMOR-1,TUMOR-2,IMM-1,IMM-2,IMM-3";
         private enum TimeOutAction {
             Action_SendENQ,
             Action_SendEOT,
@@ -328,16 +329,32 @@ namespace DeviceLink.Devices {
                         case "O":
                             Logger.Info($"Process Order Info (Data = {frameOutputString})");
 
-                            outputData = new SampleResult {
-                                SampleID = fields[2].Trim(),
-                                TestResults = new List<TestResult>()
-                            };
-                            if (!fields[3].IsNullOrEmpty()) {
-                                var components = fields[3].Split("^");
-                                var rackNo = components[1].Trim();
-                                var cupPos = components[2].Trim();
-                                ((SampleResult)outputData).RackNo = rackNo;
-                                ((SampleResult)outputData).CupPos = cupPos;
+                            if (QC_CONTROL_ID.Contains(fields[2].Trim())) {
+                                outputData = new QcResult {
+                                    SampleID = fields[2].Trim(),
+                                    QcResults = new List<TestResult>()
+                                };
+                                if (!fields[3].IsNullOrEmpty()) {
+                                    var components = fields[3].Split("^");
+                                    var rackNo = components[1].Trim();
+                                    var cupPos = components[2].Trim();
+                                    ((QcResult)outputData).RackNo = rackNo;
+                                    ((QcResult)outputData).CupPos = cupPos;
+                                }
+                                result = ProcessDataResult.DataResult_QcResult;
+                            } else {
+                                outputData = new SampleResult {
+                                    SampleID = fields[2].Trim(),
+                                    TestResults = new List<TestResult>()
+                                };
+                                if (!fields[3].IsNullOrEmpty()) {
+                                    var components = fields[3].Split("^");
+                                    var rackNo = components[1].Trim();
+                                    var cupPos = components[2].Trim();
+                                    ((SampleResult)outputData).RackNo = rackNo;
+                                    ((SampleResult)outputData).CupPos = cupPos;
+                                }
+                                result = ProcessDataResult.DataResult_TestResult;
                             }
                             break;
                         case "R":
@@ -366,8 +383,14 @@ namespace DeviceLink.Devices {
                                     Flags = testFlag,
                                     Unit = testUnit
                                 };
-                                ((SampleResult)outputData).ReportDateTime = reportDateTime;
-                                ((SampleResult)outputData).TestResults.Add(testResult);
+
+                                if (result == ProcessDataResult.DataResult_QcResult) {
+                                    ((QcResult)outputData).ReportDateTime = reportDateTime;
+                                    ((QcResult)outputData).QcResults.Add(testResult);
+                                } else {
+                                    ((SampleResult)outputData).ReportDateTime = reportDateTime;
+                                    ((SampleResult)outputData).TestResults.Add(testResult);
+                                }
                             }
                             break;
                         case "C":
@@ -375,8 +398,13 @@ namespace DeviceLink.Devices {
                             break;
                         case "L":
                             Logger.Info($"Process Terminate Info (Data = {frameOutputString})");
-
-                            if (((SampleResult)outputData).TestResults.IsNullOrEmpty()) { result = ProcessDataResult.DataResult_None; }
+                            bool resultEmpty = false;
+                            if (result == ProcessDataResult.DataResult_QcResult) {
+                                resultEmpty = ((QcResult)outputData).QcResults.IsNullOrEmpty();
+                            } else {
+                                resultEmpty = ((SampleResult)outputData).TestResults.IsNullOrEmpty();
+                            }
+                            if (resultEmpty) { result = ProcessDataResult.DataResult_None; }
                             break;
                         default:
                             Logger.Info($"Process Other Info (Data = {frameOutputString})");
