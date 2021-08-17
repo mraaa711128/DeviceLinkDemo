@@ -399,7 +399,7 @@ namespace DeviceLink.Devices {
 
                     mExpectFrameNo = 1;
 
-                    dnBuffer = $"H|\^&|||LIS|||||||P|1|{DateTime.Now.ToString("yyyyMMddHHmmss")}".ToList();
+                    dnBuffer = $"H|\\^&|||LIS|||||||P|1|{DateTime.Now.ToString("yyyyMMddHHmmss")}".ToList();
 
                     if (!data.TestOrders.IsNullOrEmpty()) {
                         result = DownloadStage.Stage_HeaderInfo;
@@ -424,7 +424,7 @@ namespace DeviceLink.Devices {
                         if (testBuffer.IsNullOrEmpty()) {
                             testBuffer.AddRange($"^^^{testOrder.Code}");
                         } else {
-                            testBuffer.AddRange($"\^^^{testOrder.Code}");
+                            testBuffer.AddRange($"\\^^^{testOrder.Code}");
                         }
                     }
                     dnBuffer.AddRange(testBuffer);
@@ -448,6 +448,7 @@ namespace DeviceLink.Devices {
                 case DownloadStage.Stage_EOT:
                 default:
                     Logger.Error("Unexpected Behavior from Device DxI Access2");
+                    dnBuffer = null;
                     return DownloadStage.Stage_EOT;
             }
 
