@@ -313,8 +313,8 @@ namespace DeviceLink.Devices
             };
             responseSample = mListener.OnSampleRequestReceived(mDeviceNo, requestSample);
             if (responseSample is null) { return SampleRequestResult.Result_NotFound; }
-            if (responseSample.TestOrders.IsNullOrEmpty()) { return SampleRequestResult.Result_NoTest; }
             if (responseSample.SampleType == "W") { responseSample.SampleType = " "; }
+            if (responseSample.TestOrders.IsNullOrEmpty()) { return SampleRequestResult.Result_NoTest; }
             return SampleRequestResult.Result_Found;
         }
 

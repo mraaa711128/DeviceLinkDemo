@@ -142,6 +142,7 @@ namespace DeviceLink.Devices {
                 } else {
                     WriteData(message);
                 }
+                mRetryCount++;
             } else {
                 Logger.Info($"Retry Write Data over {RETRY_LIMIT} times, Send [EOT] and Terminate");
                 WriteData((char)ControlCode.EOT);
@@ -158,6 +159,7 @@ namespace DeviceLink.Devices {
                             Logger.Info("Receive [ENQ]");
                             ChangeState(DeviceState.Upload);
 
+                            mExpectFrameNo = 1;
                             mUpFinalBuffer = new List<char>();
 
                             SetTimerTimeout(20, TimeOutAction.Action_BackToIdleState);
@@ -186,18 +188,21 @@ namespace DeviceLink.Devices {
                             mUpBuffer.Add(chrData);
                             break;
                         case (char)ControlCode.CR_:
-                            if (!mReceiveETBETX) { mUpBuffer.Add(chrData); }
+                            if (mReceiveETBETX) {
+                                var success = CheckFrame(mUpBuffer, mCheckSum);
+                                if (success) {
+                                    Logger.Info($"Check Frame Success (Frame = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
 
-                            var success = CheckFrame(mUpBuffer, mCheckSum);
-                            if (success) {
-                                Logger.Info($"Check Frame Success (Frame = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
+                                    mUpFinalBuffer.AddRange(mUpBuffer.SkipLast(1));
 
-                                mUpFinalBuffer.AddRange(mUpBuffer.SkipLast(1));
-
-                                WriteData((char)ControlCode.ACK);
+                                    WriteData((char)ControlCode.ACK);
+                                } else {
+                                    WriteData((char)ControlCode.NAK);
+                                }
                             } else {
-                                WriteData((char)ControlCode.NAK);
+                                mUpBuffer.Add(chrData);
                             }
+
                             break;
                         case (char)ControlCode.LF_:
                             //Do Nothing
@@ -206,7 +211,10 @@ namespace DeviceLink.Devices {
                             DisableTimer();
                             Logger.Info("Receive [EOT]");
 
-                            if (mUpFinalBuffer.IsNullOrEmpty()) { return; }
+                            if (mUpFinalBuffer.IsNullOrEmpty()) {
+                                ChangeState(DeviceState.Idle);
+                                return; 
+                            }
 
                             Logger.Info($"Receive Full Data = {new string(mUpFinalBuffer.ToArray()).ToPrintOutString()}");
 
@@ -283,9 +291,9 @@ namespace DeviceLink.Devices {
                 if (frameNo != mExpectFrameNo.ToString()) { throw new Exception($"Frame No. Mismatched for (Current = {frameNo}, Expect = {mExpectFrameNo})"); }
 
                 var lastTwoChars = strData.TakeLast(2).ToArray();
-                if (new string(lastTwoChars) != new string(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETX }) ||
+                if (new string(lastTwoChars) != new string(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETX }) &&
                         new string(lastTwoChars) != new string(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETB })) {
-                    throw new Exception($"Frame Strcuture is Corrupted for (Frame = {new string(data.ToArray()).ToPrintOutString()})");
+                    throw new Exception($"Frame Strcuture is Corrupted for (Frame = {new string(data.ToArray()).ToPrintOutString()}, LastTwoChars = {new string(lastTwoChars).ToPrintOutString()})");
                 }
 
                 var calChecksum = ComputeChecksum(data);
@@ -312,6 +320,7 @@ namespace DeviceLink.Devices {
             try {
                 var records = record.Split((char)ControlCode.CR_, StringSplitOptions.TrimEntries);
                 foreach (var frame in records) {
+                    if (frame.IsNullOrEmpty()) { continue; }
                     var frameType = frame.Substring(1, 1);
                     var frameOutputString = frame.ToPrintOutString();
 
@@ -365,7 +374,7 @@ namespace DeviceLink.Devices {
                         case "R":
                             Logger.Info($"Process Result Info (Data = {frameOutputString})");
 
-                            var status = fields[9].Trim();
+                            var status = fields[8].Trim();
                             if (status == "F") {
                                 var testAttrs = fields[2].Trim().Split("^");
                                 var testCode = testAttrs[3].Trim();
@@ -375,9 +384,9 @@ namespace DeviceLink.Devices {
 
                                 var testUnit = fields[4].Trim();
 
-                                var testFlag = fields[7].Trim();
+                                var testFlag = fields[6].Trim();
 
-                                var datetimeAttr = fields[13].Trim();
+                                var datetimeAttr = fields[12].Trim();
                                 var date = datetimeAttr.Substring(0, 8);
                                 var time = datetimeAttr.Substring(8, 6);
                                 var reportDateTime = new string[] { date, time }.ToAcDateTime();
@@ -403,13 +412,16 @@ namespace DeviceLink.Devices {
                             break;
                         case "L":
                             Logger.Info($"Process Terminate Info (Data = {frameOutputString})");
-                            bool resultEmpty = false;
-                            if (result == ProcessDataResult.DataResult_QcResult) {
-                                resultEmpty = ((QcResult)outputData).QcResults.IsNullOrEmpty();
-                            } else {
-                                resultEmpty = ((SampleResult)outputData).TestResults.IsNullOrEmpty();
+                            if (result != ProcessDataResult.DataResult_OrderRequest) {
+                                bool resultEmpty = false;
+                                if (result == ProcessDataResult.DataResult_QcResult) {
+                                    resultEmpty = ((QcResult)outputData).QcResults.IsNullOrEmpty();
+                                }
+                                if (result == ProcessDataResult.DataResult_TestResult) {
+                                    resultEmpty = ((SampleResult)outputData).TestResults.IsNullOrEmpty();
+                                }
+                                if (resultEmpty) { result = ProcessDataResult.DataResult_None; }
                             }
-                            if (resultEmpty) { result = ProcessDataResult.DataResult_None; }
                             break;
                         default:
                             Logger.Info($"Process Other Info (Data = {frameOutputString})");
@@ -487,7 +499,7 @@ namespace DeviceLink.Devices {
 
             Logger.Info($"Data = {new string(dnBuffer.ToArray()).ToPrintOutString()}");
 
-            dnBuffer.InsertRange(0, new char[] { (char)ControlCode.STX, (char)mExpectFrameNo });
+            dnBuffer.InsertRange(0, new char[] { (char)ControlCode.STX, Convert.ToChar(mExpectFrameNo.ToString("0")) });
             dnBuffer.AddRange(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETX });
 
             var chrChecksum = ComputeChecksum(dnBuffer.Skip(1).ToList());
