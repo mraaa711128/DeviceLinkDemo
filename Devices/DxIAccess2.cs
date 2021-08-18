@@ -114,6 +114,11 @@ namespace DeviceLink.Devices {
             ChangeState(DeviceState.Disconnect);
         }
 
+        protected override void ChangeState(DeviceState state) {
+            base.ChangeState(state);
+            mListener.OnStateChanging(mDeviceNo, state);
+        }
+
         protected void WriteData(char data, int timeout = 15) {
             mDnBuffer = new List<char>() { data };
             base.WriteData(data);
