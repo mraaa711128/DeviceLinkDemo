@@ -66,7 +66,8 @@ namespace DeviceLink.Devices {
                 var datetime = new string[] { date, time }.ToAcDateTime();
                 sampleResult = new SampleResult {
                     SampleID = fields[2].Trim(),
-                    ReportDateTime = datetime
+                    ReportDateTime = datetime,
+                    TestResults = new List<TestResult>()
                 };
                 return true;
             } catch (Exception ex) {
