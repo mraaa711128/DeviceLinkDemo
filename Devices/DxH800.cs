@@ -93,6 +93,11 @@ namespace DeviceLink.Devices {
                     };
                     return true;
                 }
+                if (!fields[13].IsNullOrEmpty() && fields[13].Length >= 14) {
+                    var date = fields[13].Substring(0, 8);
+                    var time = fields[13].Substring(8, 6);
+                    reportDateTime = new string[] { date, time }.ToAcDateTime();
+                }
                 return false;
             } catch (Exception ex) {
                 Logger.Error(ex, $"Process Result Info Fail with reason = {ex.Message}");
