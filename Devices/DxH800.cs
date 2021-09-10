@@ -79,6 +79,7 @@ namespace DeviceLink.Devices {
         protected override bool ProcessResultInfo(string frame, out DateTime reportDateTime, out TestResult outputData) {
             reportDateTime = DateTime.MinValue;
             outputData = null;
+            bool done = false;
             try {
                 var fields = frame.Split("|");
                 if (fields[9].Trim().Equals("F") ||
@@ -91,14 +92,14 @@ namespace DeviceLink.Devices {
                         Flags = (testValues.Length >= 2 ? testValues[1].Trim() : null),
                         Unit = fields[4].Trim()
                     };
-                    return true;
+                    done = true;
                 }
                 if (!fields[13].IsNullOrEmpty() && fields[13].Length >= 14) {
                     var date = fields[13].Substring(0, 8);
                     var time = fields[13].Substring(8, 6);
                     reportDateTime = new string[] { date, time }.ToAcDateTime();
                 }
-                return false;
+                return done;
             } catch (Exception ex) {
                 Logger.Error(ex, $"Process Result Info Fail with reason = {ex.Message}");
                 return false;
