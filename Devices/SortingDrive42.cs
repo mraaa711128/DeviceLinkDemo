@@ -104,19 +104,19 @@ namespace DeviceLink.Devices {
 
         protected override void ChangeState(DeviceState state) {
             base.ChangeState(state);
-            mListener.OnStateChanging(state);
+            mListener.OnStateChanging(mDeviceNo, state);
         }
 
         protected override void WriteData(char data) {
             mDnBuffer = new List<char>() { data };
             base.WriteData(data);
-            mListener.OnDataWriting(data.ToPrintOutString());
+            mListener.OnDataWriting(mDeviceNo, data.ToPrintOutString());
         }
 
         protected override void WriteData(string data) {
             mDnBuffer = data.ToCharArray().ToList();
             base.WriteData(data);
-            mListener.OnDataWriting(data.ToPrintOutString());
+            mListener.OnDataWriting(mDeviceNo, data.ToPrintOutString());
         }
 
         private void RetryWriteData() {
@@ -134,7 +134,7 @@ namespace DeviceLink.Devices {
         }
 
         protected override void ReadData(char ChrData) {
-            mListener.OnDataReceiving(ChrData.ToPrintOutString());
+            mListener.OnDataReceiving(mDeviceNo, ChrData.ToPrintOutString());
             switch(State) {
                 case DeviceState.Idle:
                     switch (ChrData) {

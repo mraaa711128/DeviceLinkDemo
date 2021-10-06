@@ -30,9 +30,9 @@ namespace DeviceLink.Interface
     }
 
     public interface ISortingDriveListener {
-        public void OnDataReceiving(string Data);
-        public void OnDataWriting(string Data);
-        public void OnStateChanging(DeviceState State);
+        public void OnDataReceiving(string DeviceNo, string Data);
+        public void OnDataWriting(string DeviceNo, string Data);
+        public void OnStateChanging(string DeviceNo, DeviceState State);
         public IList<TubeOrder> OnTubeOrderAcquired();
         public void OnTubeOrderAcknowledged(IList<TubeOrder> TubeOrders);
         public void OnTubeResultReceived(TubeResult Result);
