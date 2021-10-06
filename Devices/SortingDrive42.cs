@@ -25,8 +25,8 @@ namespace DeviceLink.Devices {
         private DownloadStage mDownloadStage = DownloadStage.Stage_Done;
         private int mProcessTubeOrderIndex = 0;
 
-        private List<char> mUpBuffer;
-        private List<char> mDnBuffer;
+        private List<char> mUpBuffer = new List<char>();
+        private List<char> mDnBuffer = new List<char>();
 
         private IList<TubeOrder> mTubeOrders;
         private List<TubeResult> mTubeResults;
@@ -34,6 +34,7 @@ namespace DeviceLink.Devices {
         private const int RETRY_LIMIT = 6;
 
         private enum TimeOutAction {
+            //Timeout_TestCom,
             Timeout_AcquireOrders,
             Timeout_GoToIdle
         }
@@ -65,17 +66,26 @@ namespace DeviceLink.Devices {
                 mTimer = new Timer();
                 mTimer.Elapsed += (sender, e) => {
                     if (mTimer.Enabled == false) { return; }
+                    DisableTimer();
                     switch (action) {
+                        //case TimeOutAction.Timeout_TestCom:
+                        //    ChangeState(DeviceState.Download);
+                        //    WriteData((char)ControlCode.STX);
+                        //    ChangeState(DeviceState.Idle);
+                        //    SetTimerTimeout(3, TimeOutAction.Timeout_TestCom);
+                        //    break;
                         case TimeOutAction.Timeout_AcquireOrders:
                             mTubeOrders = mListener.OnTubeOrderAcquired();
                             ChangeState(DeviceState.Download);
                             var startRecord = GenerateStartRecord();
                             mDownloadStage = DownloadStage.Stage_StartRecord;
                             WriteData(startRecord);
+                            SetTimerTimeout(5, TimeOutAction.Timeout_GoToIdle);
                             break;
                         case TimeOutAction.Timeout_GoToIdle:
                         default:
                             ChangeState(DeviceState.Idle);
+                            SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
                             break;
                     }
                 };
@@ -93,7 +103,9 @@ namespace DeviceLink.Devices {
             base.Start();
             ChangeState(DeviceState.Idle);
 
+            
             SetTimerTimeout(3, TimeOutAction.Timeout_AcquireOrders);
+            //SetTimerTimeout(3, TimeOutAction.Timeout_TestCom);
         }
 
         public override void Stop() {
@@ -130,6 +142,7 @@ namespace DeviceLink.Devices {
                 var endRecord = GenerateEndRecord();
                 WriteData(endRecord);
                 ChangeState(DeviceState.Idle);
+                SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
             }
         }
 
@@ -142,11 +155,13 @@ namespace DeviceLink.Devices {
                             Logger.Info($"Receive [STX]");
                             mReceiveETBETX = false;
                             mReceiveChksum = false;
-                            mUpBuffer.Clear();
-                            mDnBuffer.Clear();
+                            mUpBuffer = new List<char>();
+                            mDnBuffer = new List<char>();
+                            DisableTimer();
                             ChangeState(DeviceState.Upload);
                             break;
                         default:
+                            // Do Nothing
                             break;
                     }
                     break;
@@ -156,8 +171,9 @@ namespace DeviceLink.Devices {
                             Logger.Info($"Receive [STX]");
                             mReceiveETBETX = false;
                             mReceiveChksum = false;
-                            mUpBuffer.Clear();
-                            mDnBuffer.Clear();
+                            mUpBuffer = new List<char>();
+                            mDnBuffer = new List<char>();
+                            DisableTimer();
                             break;
                         case (char)ControlCode.ETX:
                             Logger.Info($"Receive [ETX]");
@@ -168,31 +184,35 @@ namespace DeviceLink.Devices {
                             if (mReceiveETBETX == false) {
                                 mUpBuffer.Add(ChrData);
                             } else {
-                                var chrCheckSum = ChrData;
-                                Logger.Info($"Recieve CheckSum = {chrCheckSum} ({BitConverter.ToString(new byte[] { (byte)chrCheckSum })})");
-                                mReceiveChksum = true;
+                                if (mReceiveChksum == false) {
+                                    var chrCheckSum = ChrData;
+                                    Logger.Info($"Recieve CheckSum = {chrCheckSum} ({BitConverter.ToString(new byte[] { (byte)chrCheckSum })})");
+                                    mReceiveChksum = true;
 
-                                var computeChecksum = ComputeXOrChecksum(mUpBuffer);
-                                if (computeChecksum != chrCheckSum) {
-                                    Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
-                                    WriteData((char)ControlCode.NAK);
-                                    return;
-                                }
+                                    var computeChecksum = ComputeXOrChecksum(mUpBuffer);
+                                    if (computeChecksum != chrCheckSum) {
+                                        Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
+                                        WriteData((char)ControlCode.NAK);
+                                        return;
+                                    }
 
-                                TubeResult tubeResult = null;
-                                ProcessDataResult result = ProcessData(new string(mUpBuffer.ToArray()), out tubeResult);
-                                switch(result) {
-                                    case ProcessDataResult.DataResult_TubeResult:
-                                        mListener.OnTubeResultReceived(tubeResult);
-                                        break;
-                                    case ProcessDataResult.DataResult_EndRecord:
-                                        ChangeState(DeviceState.Idle);
-                                        SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
-                                        break;
-                                    case ProcessDataResult.DataResult_StartRecord:
-                                    case ProcessDataResult.DataResult_None:
-                                    default:
-                                        break;
+                                    TubeResult tubeResult = null;
+                                    ProcessDataResult result = ProcessData(new string(mUpBuffer.ToArray()), out tubeResult);
+                                    switch (result) {
+                                        case ProcessDataResult.DataResult_TubeResult:
+                                            mListener.OnTubeResultReceived(tubeResult);
+                                            break;
+                                        case ProcessDataResult.DataResult_EndRecord:
+                                            ChangeState(DeviceState.Idle);
+                                            SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
+                                            break;
+                                        case ProcessDataResult.DataResult_StartRecord:
+                                        case ProcessDataResult.DataResult_None:
+                                        default:
+                                            break;
+                                    }
+                                } else {
+                                    // Do Nothing
                                 }
                             }
                             break;
@@ -212,6 +232,7 @@ namespace DeviceLink.Devices {
                                 SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
                             } else {
                                 WriteData(new string(mDnBuffer.ToArray()));
+                                SetTimerTimeout(5, TimeOutAction.Timeout_GoToIdle);
                             }
                             break;
                         case (char)ControlCode.NAK:

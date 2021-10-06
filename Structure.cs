@@ -71,7 +71,7 @@ namespace DeviceLink.Structure
 
     public class TubeOrder : TubeInfo {
         public bool IsEmergency { get; set; }
-        public DateTime OrderDateTime { get; set; }
+        public DateTime AppointDateTime { get; set; }
         public IList<TestOrder> TestOrders { get; set; }
     }
 
