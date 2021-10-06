@@ -9,6 +9,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Timers;
+using Utility.Extensions;
+using Utility.Extensions.Enumerable;
 
 namespace DeviceLink.Devices {
     public class SortingDrive42 : SerialDevice, IDevice {
@@ -26,15 +28,20 @@ namespace DeviceLink.Devices {
         private List<char> mUpBuffer;
         private List<char> mDnBuffer;
 
-        private List<TubeOrder> mTubeOrders;
+        private IList<TubeOrder> mTubeOrders;
         private List<TubeResult> mTubeResults;
 
         private const int RETRY_LIMIT = 6;
 
+        private enum TimeOutAction {
+            Timeout_AcquireOrders,
+            Timeout_GoToIdle
+        }
         private enum ProcessDataResult {
             DataResult_StartRecord,
             DataResult_TubeResult,
-            DataResult_EndRecord
+            DataResult_EndRecord,
+            DataResult_None
         }
         private enum DownloadStage {
             Stage_StartRecord,
@@ -48,17 +55,51 @@ namespace DeviceLink.Devices {
             mComPort = ComPort;
             mListener = Listener;
 
+            mTubeOrders = new List<TubeOrder>();
+
             Logger = NLog.LogManager.GetLogger($"DeviceLink.SortingDrive42_{DeviceNo}");
+        }
+
+        private void SetTimerTimeout(int second, TimeOutAction action) {
+            if (mTimer is null) {
+                mTimer = new Timer();
+                mTimer.Elapsed += (sender, e) => {
+                    if (mTimer.Enabled == false) { return; }
+                    switch (action) {
+                        case TimeOutAction.Timeout_AcquireOrders:
+                            mTubeOrders = mListener.OnTubeOrderAcquired();
+                            ChangeState(DeviceState.Download);
+                            var startRecord = GenerateStartRecord();
+                            mDownloadStage = DownloadStage.Stage_StartRecord;
+                            WriteData(startRecord);
+                            break;
+                        case TimeOutAction.Timeout_GoToIdle:
+                        default:
+                            ChangeState(DeviceState.Idle);
+                            break;
+                    }
+                };
+            }
+            mTimer.Interval = second * 1000;
+            mTimer.Start();
+        }
+
+        private void DisableTimer() {
+            if (mTimer is null) { return; }
+            mTimer.Stop();
         }
 
         public override void Start() {
             base.Start();
             ChangeState(DeviceState.Idle);
+
+            SetTimerTimeout(3, TimeOutAction.Timeout_AcquireOrders);
         }
 
         public override void Stop() {
             base.Stop();
             ChangeState(DeviceState.Disconnect);
+            DisableTimer();
         }
 
         protected override void ChangeState(DeviceState state) {
@@ -146,8 +187,10 @@ namespace DeviceLink.Devices {
                                         break;
                                     case ProcessDataResult.DataResult_EndRecord:
                                         ChangeState(DeviceState.Idle);
+                                        SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
                                         break;
                                     case ProcessDataResult.DataResult_StartRecord:
+                                    case ProcessDataResult.DataResult_None:
                                     default:
                                         break;
                                 }
@@ -161,11 +204,14 @@ namespace DeviceLink.Devices {
                             Logger.Info("Receive [ACK]");
 
                             mDownloadStage = ProcessDownloadData(mTubeOrders, out mDnBuffer);
-                            WriteData(new string(mDnBuffer.ToArray()));
 
                             if (mDownloadStage == DownloadStage.Stage_Done) {
                                 mListener.OnTubeOrderAcknowledged(mTubeOrders);
+                                mTubeOrders.Clear();
                                 ChangeState(DeviceState.Idle);
+                                SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
+                            } else {
+                                WriteData(new string(mDnBuffer.ToArray()));
                             }
                             break;
                         case (char)ControlCode.NAK:
@@ -182,11 +228,102 @@ namespace DeviceLink.Devices {
         }
 
         private ProcessDataResult ProcessData(string data, out TubeResult result) {
+            result = null;
 
+            var recType = data.Substring(0, 1);
+
+            try {
+                switch (recType) {
+                    case "S":
+                        Logger.Info($"Process Start Record (Data = {data.Substring(0, data.Length - 1).ToPrintOutString()})");
+                        return ProcessDataResult.DataResult_StartRecord;
+                    case "E":
+                        Logger.Info($"Process End Record (Data = {data.Substring(0, data.Length - 1).ToPrintOutString()})");
+                        return ProcessDataResult.DataResult_EndRecord;
+                    case "R":
+                        var fields = data.Split("|");
+                        Logger.Info($"Process Tube Record (Data = {data.Substring(0, data.Length - 1).ToPrintOutString()})");
+                        var date = fields[11].Trim().Substring(0, 8);
+                        var time = fields[11].Trim().Substring(9, 6);
+                        result = new TubeResult {
+                            SampleID = fields[3].Trim(),
+                            SampleType = fields[7].Trim(),
+                            TubeType = int.Parse(fields[5].Trim()),
+                            WorkplaceType = int.Parse(fields[6].Trim()),
+                            ArchiveID = fields[8].Trim(),
+                            RackID = fields[9].Trim(),
+                            RowID = fields[10].Trim().Substring(0, 2),
+                            ColumnID = fields[10].Trim().Substring(2, 2),
+                            ReportDateTime = new string[] { date, time }.ToAcDateTime(),
+                            Volume = int.Parse(fields[12].Trim()),
+                            TestOrders = fields[13].Split("~").Select(f => new TestOrder {
+                                Code = f,
+                                Dilution = SampleDilution.None
+                            }).ToList()
+                        };
+                        return ProcessDataResult.DataResult_TubeResult;
+                    case "T":
+                        Logger.Info($"Process Detect Record (Data = {data.Substring(0, data.Length - 1).ToPrintOutString()})");
+                        return ProcessDataResult.DataResult_None;
+                    default:
+                        return ProcessDataResult.DataResult_None;
+                }
+            } catch (Exception ex) {
+                Logger.Error(ex, $"Process Data Failed with reason = {ex.Message} !");
+                return ProcessDataResult.DataResult_None;
+            }
         }
 
         private DownloadStage ProcessDownloadData(IList<TubeOrder> orders, out List<char> dnBuffer) {
+            var result = DownloadStage.Stage_StartRecord;
+            dnBuffer = null;
+            TubeOrder order = null;
 
+            switch(mDownloadStage) {
+                case DownloadStage.Stage_StartRecord:
+                case DownloadStage.Stage_TubeOrder:
+                    if (mProcessTubeOrderIndex < orders.Count) {
+                        order = orders[mProcessTubeOrderIndex];
+                        mProcessTubeOrderIndex++;
+
+                        dnBuffer = $"O|LIS|{order.SampleID}||{(order.IsEmergency ? "1" : "0")}|0||||||||||".ToList();
+                        var testBuffer = new List<char>();
+                        foreach (var test in order.TestOrders) {
+                            if (testBuffer.IsNullOrEmpty()) {
+                                testBuffer.AddRange($"{test.Code}".ToList());
+                            } else {
+                                testBuffer.AddRange($"~{test.Code}".ToList());
+                            }
+                        }
+                        dnBuffer.AddRange(testBuffer);
+
+                        result = DownloadStage.Stage_TubeOrder;
+                    } else {
+                        dnBuffer = $"E|||||||||||||||".ToList();
+                        result = DownloadStage.Stage_EndRecord;
+                    }
+                    break;
+                case DownloadStage.Stage_EndRecord:
+                    dnBuffer = null;
+                    return DownloadStage.Stage_Done;
+                case DownloadStage.Stage_Done:
+                default:
+                    Logger.Error("Unexpected Behavior from Device DxI Access2");
+                    dnBuffer = null;
+                    return DownloadStage.Stage_Done;
+            }
+
+            Logger.Info($"Data = {new string(dnBuffer.ToArray()).ToPrintOutString()}");
+
+            dnBuffer.Insert(0, (char)ControlCode.STX);
+            dnBuffer.Add((char)ControlCode.ETX);
+
+            var chrChecksum = ComputeXOrChecksum(dnBuffer.Skip(1).ToList());
+            dnBuffer.Add(chrChecksum);
+
+            Logger.Info($"Computed Data = {new string(dnBuffer.ToArray()).ToPrintOutString()}");
+
+            return result;
         }
         private string GenerateStartRecord() {
             var record = "S|||||||||||||||".ToList();

@@ -80,6 +80,7 @@ namespace DeviceLink.Structure
         public string ArchiveID { get; set; }
         public string RackID { get; set; }
         public string RowID { get; set; }
+        public string ColumnID { get; set; }
         public DateTime ReportDateTime { get; set; }
         public int Volume { get; set; }
         public IList<TestOrder> TestOrders { get; set; }
