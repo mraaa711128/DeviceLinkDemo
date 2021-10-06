@@ -136,6 +136,7 @@ namespace DeviceLink.Devices {
                 var message = new string(mDnBuffer.ToArray());
                 Logger.Info($"{mRetryCount + 1} time(s) Retry Write Data (Data = {message.ToPrintOutString()})");
                 WriteData(message);
+                SetTimerTimeout(5, TimeOutAction.Timeout_GoToIdle);
                 mRetryCount++;
             } else {
                 Logger.Info($"Retry Write Data over {RETRY_LIMIT} times, Send End Record and Terminate");
@@ -225,6 +226,7 @@ namespace DeviceLink.Devices {
                     switch (ChrData) {
                         case (char)ControlCode.ACK:
                             Logger.Info("Receive [ACK]");
+                            DisableTimer();
 
                             mDownloadStage = ProcessDownloadData(mTubeOrders, out mDnBuffer);
 
