@@ -194,6 +194,9 @@ namespace DeviceLink.Devices {
                                         Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
                                         WriteData((char)ControlCode.NAK);
                                         return;
+                                    } else {
+                                        Logger.Info($"Verify Checksum Success (Data = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
+                                        WriteData((char)ControlCode.ACK);
                                     }
 
                                     TubeResult tubeResult = null;
