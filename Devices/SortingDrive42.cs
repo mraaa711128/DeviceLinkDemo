@@ -75,6 +75,7 @@ namespace DeviceLink.Devices {
                         //    SetTimerTimeout(3, TimeOutAction.Timeout_TestCom);
                         //    break;
                         case TimeOutAction.Timeout_AcquireOrders:
+                            mProcessTubeOrderIndex = 0;
                             mTubeOrders = mListener.OnTubeOrderAcquired();
                             ChangeState(DeviceState.Download);
                             var startRecord = GenerateStartRecord();
