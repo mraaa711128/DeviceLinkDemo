@@ -132,7 +132,7 @@ namespace DeviceLink.Devices {
             orderFrame = null;
             try {
                 if (sampleResponse.TestOrders.IsNullOrEmpty()) {
-                    orderFrame = $"O|1|{sampleResponse.SampleID}||!!!CD|R||||||||||Whole blood";
+                    orderFrame = $"O|1|{sampleResponse.SampleID}||!!!|R||||||||||Whole blood";
                 } else {
                     orderFrame = $"O|1|{sampleResponse.SampleID}||";
                     var tests = sampleResponse.TestOrders.Select(x => x.Code).ToList();
