@@ -136,9 +136,9 @@ namespace DeviceLink.Devices {
                 } else {
                     orderFrame = $"O|1|{sampleResponse.SampleID}||";
                     var tests = sampleResponse.TestOrders.Select(x => x.Code).ToList();
-                    if (tests.Count == 2 && tests.TrueForAll(t => "CBC,DC".Contains(t))) {
+                    if (tests.Exists(x => x == "DC")) {
                         orderFrame += "!!!CD";
-                    } else if (tests.Count == 1 && tests.Contains("CBC")) {
+                    } else if (tests.Exists(x => x == "CBC")) {
                         orderFrame += $"!!!CBC";
                     } else {
                         orderFrame += "!!!";
