@@ -168,59 +168,60 @@ namespace DeviceLink.Devices {
                     }
                     break;
                 case DeviceState.Upload:
-                    switch(ChrData) {
-                        case (char)ControlCode.STX:
-                            Logger.Info($"Receive [STX]");
-                            mReceiveETBETX = false;
-                            mReceiveChksum = false;
-                            mUpBuffer = new List<char>();
-                            mDnBuffer = new List<char>();
-                            DisableTimer();
-                            break;
-                        case (char)ControlCode.ETX:
-                            Logger.Info($"Receive [ETX]");
-                            mReceiveETBETX = true;
-                            mUpBuffer.Add(ChrData);
-                            break;
-                        default:
-                            if (mReceiveETBETX == false) {
+                    if (mReceiveETBETX == false) {
+                        switch (ChrData) {
+                            case (char)ControlCode.STX:
+                                Logger.Info($"Receive [STX]");
+                                mReceiveETBETX = false;
+                                mReceiveChksum = false;
+                                mUpBuffer = new List<char>();
+                                mDnBuffer = new List<char>();
+                                DisableTimer();
+                                break;
+                            case (char)ControlCode.ETX:
+                                Logger.Info($"Receive [ETX]");
+                                mReceiveETBETX = true;
                                 mUpBuffer.Add(ChrData);
-                            } else {
-                                if (mReceiveChksum == false) {
-                                    var chrCheckSum = ChrData;
-                                    Logger.Info($"Recieve CheckSum = {chrCheckSum} ({BitConverter.ToString(new byte[] { (byte)chrCheckSum })})");
-                                    mReceiveChksum = true;
+                                break;
+                            default:
+                                    mUpBuffer.Add(ChrData);
+                                break;
+                        }
 
-                                    var computeChecksum = ComputeXOrChecksum(mUpBuffer);
-                                    if (computeChecksum != chrCheckSum) {
-                                        Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
-                                        WriteData((char)ControlCode.NAK);
-                                        return;
-                                    } else {
-                                        Logger.Info($"Verify Checksum Success (Data = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
-                                        WriteData((char)ControlCode.ACK);
-                                    }
+                    }
+                    if (mReceiveChksum == false) {
+                        var chrCheckSum = ChrData;
+                        Logger.Info($"Recieve CheckSum = {chrCheckSum} ({BitConverter.ToString(new byte[] { (byte)chrCheckSum })})");
+                        mReceiveChksum = true;
 
-                                    TubeResult tubeResult = null;
-                                    ProcessDataResult result = ProcessData(new string(mUpBuffer.ToArray()), out tubeResult);
-                                    switch (result) {
-                                        case ProcessDataResult.DataResult_TubeResult:
-                                            mListener.OnTubeResultReceived(tubeResult);
-                                            break;
-                                        case ProcessDataResult.DataResult_EndRecord:
-                                            ChangeState(DeviceState.Idle);
-                                            SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
-                                            break;
-                                        case ProcessDataResult.DataResult_StartRecord:
-                                        case ProcessDataResult.DataResult_None:
-                                        default:
-                                            break;
-                                    }
-                                } else {
-                                    // Do Nothing
-                                }
-                            }
-                            break;
+                        var computeChecksum = ComputeXOrChecksum(mUpBuffer);
+                        if (computeChecksum != chrCheckSum) {
+                            Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
+                            WriteData((char)ControlCode.NAK);
+                            return;
+                        } else {
+                            Logger.Info($"Verify Checksum Success (Data = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
+                            WriteData((char)ControlCode.ACK);
+                        }
+
+                        TubeResult tubeResult = null;
+                        ProcessDataResult result = ProcessData(new string(mUpBuffer.ToArray()), out tubeResult);
+                        switch (result) {
+                            case ProcessDataResult.DataResult_TubeResult:
+                                mListener.OnTubeResultReceived(tubeResult);
+                                break;
+                            case ProcessDataResult.DataResult_EndRecord:
+                                ChangeState(DeviceState.Idle);
+                                SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
+                                break;
+                            case ProcessDataResult.DataResult_StartRecord:
+                            case ProcessDataResult.DataResult_None:
+                            default:
+                                break;
+                        }
+
+                        mReceiveETBETX = false;
+                        mReceiveChksum = false;
                     }
                     break;
                 case DeviceState.Download:
