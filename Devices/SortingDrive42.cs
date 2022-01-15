@@ -188,40 +188,42 @@ namespace DeviceLink.Devices {
                                 break;
                         }
 
-                    }
-                    if (mReceiveChksum == false) {
-                        var chrCheckSum = ChrData;
-                        Logger.Info($"Recieve CheckSum = {chrCheckSum} ({BitConverter.ToString(new byte[] { (byte)chrCheckSum })})");
-                        mReceiveChksum = true;
+                    } else {
+                        if (mReceiveChksum == false) {
+                            var chrCheckSum = ChrData;
+                            Logger.Info($"Recieve CheckSum = {chrCheckSum} ({BitConverter.ToString(new byte[] { (byte)chrCheckSum })})");
+                            mReceiveChksum = true;
 
-                        var computeChecksum = ComputeXOrChecksum(mUpBuffer);
-                        if (computeChecksum != chrCheckSum) {
-                            Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
-                            WriteData((char)ControlCode.NAK);
-                            return;
-                        } else {
-                            Logger.Info($"Verify Checksum Success (Data = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
-                            WriteData((char)ControlCode.ACK);
+                            var computeChecksum = ComputeXOrChecksum(mUpBuffer);
+                            if (computeChecksum != chrCheckSum) {
+                                Logger.Info($"Frame Check Failed because Checksum Compare Failed Received = {chrCheckSum}, Computed = {computeChecksum}");
+                                WriteData((char)ControlCode.NAK);
+                                return;
+                            } else {
+                                Logger.Info($"Verify Checksum Success (Data = {new string(mUpBuffer.ToArray()).ToPrintOutString()})");
+                                WriteData((char)ControlCode.ACK);
+                            }
+
+                            TubeResult tubeResult = null;
+                            ProcessDataResult result = ProcessData(new string(mUpBuffer.ToArray()), out tubeResult);
+                            switch (result) {
+                                case ProcessDataResult.DataResult_TubeResult:
+                                    mListener.OnTubeResultReceived(tubeResult);
+                                    break;
+                                case ProcessDataResult.DataResult_EndRecord:
+                                    ChangeState(DeviceState.Idle);
+                                    SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
+                                    break;
+                                case ProcessDataResult.DataResult_StartRecord:
+                                case ProcessDataResult.DataResult_None:
+                                default:
+                                    break;
+                            }
+
+                            mReceiveETBETX = false;
+                            mReceiveChksum = false;
                         }
 
-                        TubeResult tubeResult = null;
-                        ProcessDataResult result = ProcessData(new string(mUpBuffer.ToArray()), out tubeResult);
-                        switch (result) {
-                            case ProcessDataResult.DataResult_TubeResult:
-                                mListener.OnTubeResultReceived(tubeResult);
-                                break;
-                            case ProcessDataResult.DataResult_EndRecord:
-                                ChangeState(DeviceState.Idle);
-                                SetTimerTimeout(10, TimeOutAction.Timeout_AcquireOrders);
-                                break;
-                            case ProcessDataResult.DataResult_StartRecord:
-                            case ProcessDataResult.DataResult_None:
-                            default:
-                                break;
-                        }
-
-                        mReceiveETBETX = false;
-                        mReceiveChksum = false;
                     }
                     break;
                 case DeviceState.Download:
