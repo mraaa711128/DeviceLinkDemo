@@ -303,10 +303,10 @@ namespace DeviceLink.Devices {
                 var frameNo = strData.Substring(0, 1);
                 if (frameNo != mExpectFrameNo.ToString()) { throw new Exception($"Frame No. Mismatched for (Current = {frameNo}, Expect = {mExpectFrameNo})"); }
 
-                var lastTwoChars = strData.TakeLast(2).ToArray();
-                if (new string(lastTwoChars) != new string(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETX }) &&
-                        new string(lastTwoChars) != new string(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETB })) {
-                    throw new Exception($"Frame Strcuture is Corrupted for (Frame = {new string(data.ToArray()).ToPrintOutString()}, LastTwoChars = {new string(lastTwoChars).ToPrintOutString()})");
+                var lastChar = strData.TakeLast(1).ToArray();
+                if (new string(lastChar) != new string(new char[] { (char)ControlCode.ETX }) &&
+                        new string(lastChar) != new string(new char[] { (char)ControlCode.ETB })) {
+                    throw new Exception($"Frame Strcuture is Corrupted for (Frame = {new string(data.ToArray()).ToPrintOutString()}, LastTwoChars = {new string(lastChar).ToPrintOutString()})");
                 }
 
                 var calChecksum = ComputeChecksum(data);
@@ -456,9 +456,9 @@ namespace DeviceLink.Devices {
 
                 dnBuffer.InsertRange(0, new char[] { (char)ControlCode.STX, Convert.ToChar(mExpectFrameNo.ToString("0")) });
                 if (hasMore) {
-                    dnBuffer.AddRange(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETB });
+                    dnBuffer.AddRange(new char[] { (char)ControlCode.ETB });
                 } else {
-                    dnBuffer.AddRange(new char[] { (char)ControlCode.CR_, (char)ControlCode.ETX });
+                    dnBuffer.AddRange(new char[] { (char)ControlCode.ETX });
                 }
 
                 var chrChecksum = ComputeChecksum(dnBuffer.Skip(1).ToList());
@@ -512,7 +512,7 @@ namespace DeviceLink.Devices {
                     var valAT = AC.Attributes["AT"].Value;
                     var valAS = AC.Attributes["AS"].Value;
                     if (valAS == "Done") {
-                        var ARs = AC.SelectNodes($"//AC[@AT={valAT}]//AR");
+                        var ARs = AC.SelectNodes($"//AC[@AT='{valAT}']//AR");
                         if (ARs.IsNullOrEmpty()) { continue; }
                         for (var j = 0; j < ARs.Count; j++) {
                             var AR = ARs.Item(j);
