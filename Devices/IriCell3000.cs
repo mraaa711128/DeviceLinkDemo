@@ -524,7 +524,7 @@ namespace DeviceLink.Devices {
                             var results = AR.InnerText.Split(' ');
                             if (results.IsNullOrEmpty()) { continue; }
                             var valResult = results[0];
-                            if (valResult.ToUpper() == "[NONE]") { valResult = ""; }
+                            if (valResult.ToUpper() == "[none]") { valResult = ""; }
 
                             var testResult = new TestResult {
                                 Code = valKey,
