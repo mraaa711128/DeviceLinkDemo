@@ -519,12 +519,11 @@ namespace DeviceLink.Devices {
                             var valKey = AR.Attributes["Key"].Value;
                             
                             var valFlag = AR.Attributes["AF"].Value;
-                            if (valFlag == "0") { valFlag = ""; }
+                            //if (valFlag == "0") { valFlag = ""; }
                             
                             var results = AR.InnerText.Split(' ');
                             if (results.IsNullOrEmpty()) { continue; }
                             var valResult = results[0];
-                            if (valResult.ToUpper() == "[none]") { valResult = ""; }
 
                             var testResult = new TestResult {
                                 Code = valKey,
@@ -534,10 +533,10 @@ namespace DeviceLink.Devices {
 
                             if (results.Length >= 2) { testResult.Unit = results[1]; }
 
-                            if (valKey == "URO" && (valResult.ToUpper() == "NEGATIVE" || valResult == "-")) {
-                                testResult.Result = "0.2";
-                                testResult.Unit = "mg/dL";
-                            }
+                            //if (valKey == "URO" && (valResult.ToUpper() == "NEGATIVE" || valResult == "-")) {
+                            //    testResult.Result = "0.2";
+                            //    testResult.Unit = "mg/dL";
+                            //}
 
                             sampleResult.TestResults.Add(testResult);
                         }
