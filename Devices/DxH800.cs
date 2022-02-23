@@ -89,9 +89,12 @@ namespace DeviceLink.Devices {
                     outputData = new TestResult {
                         Code = testIds[3].Trim(),
                         Result = testValues[0].Trim(),
-                        Flags = (testValues.Length >= 2 ? testValues[1].Trim() : null),
+                        Flags = (testValues.Length >= 2 ? testValues[1].Trim() : ""),
                         Unit = fields[4].Trim()
                     };
+                    var flags = outputData.Flags.Split("^");
+                    var trimFlags = string.Join(",", flags.Select(f => f.Trim()).ToArray()).Trim(',');
+                    outputData.Flags = trimFlags;
                     done = true;
                 }
                 if (!fields[13].IsNullOrEmpty() && fields[13].Length >= 14) {
